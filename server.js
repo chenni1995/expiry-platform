@@ -55,17 +55,22 @@ app.post('/api/import', upload.single('file'), (req, res) => {
     `);
 
     const insertMany = db.transaction((items) => {
+      let count = 0;
       for (const item of items) {
         const sampleNo = String(item[sampleKey] || '').trim();
         const productName = String(item[productKey] || '').trim();
         const expiryDate = String(item[expiryKey] || '').trim();
         const generateDate = String(item[generateKey] || '').trim();
-        insert.run(sampleNo, productName, expiryDate, generateDate);
+        if (sampleNo) {
+          insert.run(sampleNo, productName, expiryDate, generateDate);
+          count++;
+        }
       }
+      return count;
     });
 
-    insertMany(rows);
-    res.json({ success: true, count: rows.length });
+    const count = insertMany(rows);
+    res.json({ success: true, count: count });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
