@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>产品效期查询平台</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { text-align: center; margin-bottom: 20px; color: white; font-size: 28px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    
+    .query-card { background: white; border-radius: 16px; padding: 32px; margin-bottom: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    .query-card h2 { margin-bottom: 20px; color: #333; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+    .query-card .icon { font-size: 24px; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; margin-bottom: 6px; color: #666; font-size: 14px; font-weight: 500; }
+    input[type="text"], input[type="file"], input[type="password"], textarea { width: 100%; padding: 14px; border: 2px solid #e8e8e8; border-radius: 8px; font-size: 15px; transition: border-color 0.3s; }
+    input[type="text"]:focus, textarea:focus { border-color: #667eea; outline: none; }
+    textarea { height: 120px; resize: vertical; font-family: monospace; }
+    .btn-query { width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 16px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600; transition: transform 0.2s, box-shadow 0.2s; }
+    .btn-query:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4); }
+    .btn-query:disabled { background: #ccc; transform: none; box-shadow: none; cursor: not-allowed; }
+    .btn-secondary { background: #52c41a; }
+    .btn-secondary:hover { background: #73d13d; }
+    .btn-danger { background: #ff4d4f; }
+    .btn-danger:hover { background: #ff7875; }
+    
+    .result { margin-top: 20px; padding: 20px; border-radius: 8px; }
+    .result.success { background: #f6ffed; border: 1px solid #b7eb8f; }
+    .result.error { background: #fff2f0; border: 1px solid #ffccc7; }
+    .result.not-found { background: #fffbe6; border: 1px solid #ffe58f; }
+    .result-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    .result-table th, .result-table td { padding: 12px; border: 1px solid #e8e8e8; text-align: left; }
+    .result-table th { background: #fafafa; font-weight: 600; color: #333; }
+    .result-table .not-found { color: #ff4d4f; }
+    .result-table .found { color: #52c41a; font-weight: 600; }
+    .stats { display: flex; justify-content: center; gap: 40px; }
+    .stat-item { text-align: center; }
+    .stat-value { font-size: 32px; font-weight: bold; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { font-size: 14px; color: #666; margin-top: 4px; }
+    .loading { text-align: center; color: #999; padding: 20px; }
+    .hint { font-size: 13px; color: #999; margin-top: 6px; }
+    .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: 500; }
+    
+    .section-title { color: white; font-size: 18px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    
+    .card { background: white; border-radius: 12px; padding: 24px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .card h3 { margin-bottom: 16px; color: #333; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+    .card .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .card button { padding: 12px 20px; }
+    
+    .small-text { font-size: 12px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔬 产品效期查询平台</h1>
+    
+    <div class="query-card">
+      <h2><span class="icon">🔍</span> 查询效期</h2>
+      <form id="queryForm">
+        <div class="form-group">
+          <label>输入样本编号（每行一个，或用逗号/空格分隔）</label>
+          <textarea name="sampleNos" placeholder="A001&#10;A002&#10;A003" required></textarea>
+          <div class="hint">支持批量查询，最多5000条</div>
+        </div>
+        <button type="submit" id="queryBtn" class="btn-query">查询</button>
+      </form>
+      <div id="queryResult"></div>
+    </div>
+
+    <div class="query-card" style="padding: 20px;">
+      <div class="stats">
+        <div class="stat-item">
+          <div class="stat-value" id="totalCount">-</div>
+          <div class="stat-label">总记录数</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">⚙️ 数据管理</div>
+    
+    <div class="card">
+      <h3>📥 导入效期数据</h3>
+      <form id="importForm">
+        <div class="form-group">
+          <label>管理密码</label>
+          <input type="password" name="password" placeholder="请输入管理密码">
+        </div>
+        <div class="form-group">
+          <label>选择 Excel 文件 (.xlsx)</label>
+          <input type="file" name="file" accept=".xlsx">
+        </div>
+        <button type="submit" id="importBtn">导入数据</button>
+      </form>
+      <div id="importResult"></div>
+    </div>
+
+    <div class="card">
+      <h3>🗑️ 删除指定数据</h3>
+      <form id="deleteForm">
+        <div class="form-group">
+          <label>管理密码</label>
+          <input type="password" name="password" placeholder="请输入管理密码">
+        </div>
+        <div class="form-group">
+          <label>选择 Excel 文件 (.xlsx)，根据样本编号删除数据</label>
+          <input type="file" name="file" accept=".xlsx">
+        </div>
+        <button type="submit" id="deleteBtn" class="btn-danger">导入删除</button>
+      </form>
+      <div id="deleteResult"></div>
+    </div>
+  </div>
+
+  <script>
+    let lastQueryData = [];
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        document.getElementById('totalCount').textContent = data.count.toLocaleString();
+      } catch (e) {
+        document.getElementById('totalCount').textContent = '0';
+      }
+    }
+    loadStats();
+
+    function parseSampleNos(text) {
+      return text.split(/[\n,，\s]+/).map(s => s.trim()).filter(s => s.length > 0);
+    }
+
+    function exportData() {
+      if (!lastQueryData || lastQueryData.length === 0) {
+        alert('没有数据可导出');
+        return;
+      }
+      const exportData = lastQueryData.map(item => ({
+        '样本编号': item.sample_no,
+        '产品': item.product_name || '',
+        '效期': item.expiry_date,
+        '生产日期': item.generate_date || ''
+      }));
+      fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: exportData })
+      }).then(res => res.blob()).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '效期查询结果.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    document.getElementById('queryForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('queryBtn');
+      const result = document.getElementById('queryResult');
+      const text = e.target.sampleNos.value.trim();
+      
+      if (!text) return;
+      const sampleNos = parseSampleNos(text);
+      if (sampleNos.length === 0) return;
+      if (sampleNos.length > 5000) {
+        result.innerHTML = '<div class="result error">查询数量超过限制（最多5000条）</div>';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '查询中...';
+      
+      try {
+        const res = await fetch('/api/query/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sampleNos })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          lastQueryData = data.data;
+          const foundCount = data.data.filter(d => d.expiry_date !== '未找到').length;
+          
+          let html = `<div class="result success">
+            <div class="result-header">
+              <span>查询结果：${foundCount}/${data.data.length} 条匹配</span>
+              <button type="button" onclick="exportData()" style="padding:6px 12px;background:#52c41a;color:#fff;border:none;border-radius:4px;cursor:pointer;">导出Excel</button>
+            </div>
+            <table class="result-table">
+              <thead><tr><th>样本编号</th><th>产品</th><th>效期</th><th>生产日期</th></tr></thead>
+              <tbody>`;
+          
+          data.data.forEach(item => {
+            const isNotFound = item.expiry_date === '未找到';
+            html += `<tr>
+              <td>${item.sample_no}</td>
+              <td>${item.product_name || '-'}</td>
+              <td class="${isNotFound ? 'not-found' : 'found'}">${item.expiry_date}</td>
+              <td>${item.generate_date || '-'}</td>
+            </tr>`;
+          });
+          
+          html += '</tbody></table></div>';
+          result.innerHTML = html;
+        } else {
+          result.innerHTML = '<div class="result error">查询失败: ' + data.error + '</div>';
+        }
+      } catch (err) {
+        result.innerHTML = '<div class="result error">错误: ' + err.message + '</div>';
+      }
+      
+      btn.disabled = false;
+      btn.textContent = '查询';
+    });
+
+    document.getElementById('importForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const passwordInput = document.querySelector('#importForm input[name="password"]');
+      const fileInput = document.querySelector('#importForm input[type="file"]');
+      const btn = document.getElementById('importBtn');
+      const result = document.getElementById('importResult');
+      
+      if (!fileInput.files.length) {
+        result.innerHTML = '<div class="result error">请选择文件</div>';
+        return;
+      }
+      
+      const password = passwordInput.value;
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('password', password);
+      
+      btn.disabled = true;
+      btn.textContent = '导入中...';
+      result.innerHTML = '<div class="loading">正在导入，请稍候...</div>';
+      
+      try {
+        const res = await fetch('/api/import', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          result.innerHTML = '<div class="result success">✅ 导入成功！共导入 ' + data.count + ' 条记录</div>';
+          loadStats();
+        } else {
+          result.innerHTML = '<div class="result error">❌ ' + data.error + '</div>';
+        }
+      } catch (err) {
+        result.innerHTML = '<div class="result error">❌ ' + err.message + '</div>';
+      }
+      
+      btn.disabled = false;
+      btn.textContent = '导入数据';
+    });
+
+    document.getElementById('deleteForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const passwordInput = document.querySelector('#deleteForm input[name="password"]');
+      const fileInput = document.querySelector('#deleteForm input[type="file"]');
+      const btn = document.getElementById('deleteBtn');
+      const result = document.getElementById('deleteResult');
+      
+      if (!fileInput.files.length) {
+        result.innerHTML = '<div class="result error">请选择文件</div>';
+        return;
+      }
+      
+      const password = passwordInput.value;
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('password', password);
+      
+      if (!confirm('确定要根据导入文件删除数据吗？')) return;
+      
+      btn.disabled = true;
+      btn.textContent = '删除中...';
+      result.innerHTML = '<div class="loading">正在删除，请稍候...</div>';
+      
+      try {
+        const res = await fetch('/api/delete-by-file', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          result.innerHTML = '<div class="result success">✅ 已删除 ' + data.deleted + ' 条记录</div>';
+          loadStats();
+        } else {
+          result.innerHTML = '<div class="result error">❌ ' + data.error + '</div>';
+        }
+      } catch (err) {
+        result.innerHTML = '<div class="result error">❌ ' + err.message + '</div>';
+      }
+      
+      btn.disabled = false;
+      btn.textContent = '导入删除';
+    });
+  </script>
+</body>
+</html>

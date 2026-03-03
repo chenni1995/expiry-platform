@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>产品效期查询平台</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
+    .card { background: #f5f5f5; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+    input, button { padding: 10px; margin: 5px 0; }
+    button { background: #1890ff; color: white; border: none; cursor: pointer; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h1>产品效期查询平台</h1>
+  
+  <div class="card">
+    <h2>导入数据</h2>
+    <p>密码: <input type="password" id="pwd" value="admin123"></p>
+    <p>文件: <input type="file" id="file"></p>
+    <button onclick="importData()">导入</button>
+    <p id="importMsg"></p>
+  </div>
+
+  <div class="card">
+    <h2>查询</h2>
+    <textarea id="queryInput" rows="5" placeholder="输入样本编号，每行一个"></textarea>
+    <button onclick="queryData()">查询</button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    async function importData() {
+      const pwd = document.getElementById('pwd').value;
+      const file = document.getElementById('file').files[0];
+      const msg = document.getElementById('importMsg');
+      
+      if (!file) { msg.innerHTML = '<span class="error">请选择文件</span>'; return; }
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('password', pwd);
+      
+      msg.textContent = '导入中...';
+      
+      try {
+        const res = await fetch('/api/import', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+          msg.innerHTML = '<span class="success">成功导入 ' + data.count + ' 条</span>';
+        } else {
+          msg.innerHTML = '<span class="error">' + data.error + '</span>';
+        }
+      } catch (e) {
+        msg.innerHTML = '<span class="error">' + e.message + '</span>';
+      }
+    }
+
+    async function queryData() {
+      const text = document.getElementById('queryInput').value;
+      const nos = text.split(/[\n,，\s]+/).filter(s => s);
+      if (!nos.length) return;
+      
+      const res = await fetch('/api/query/batch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sampleNos: nos})
+      });
+      const data = await res.json();
+      
+      let html = '<table><tr><th>样本编号</th><th>产品</th><th>效期</th></tr>';
+      data.data.forEach(r => {
+        const cls = r.expiry_date === '未找到' ? 'error' : '';
+        html += '<tr><td>' + r.sample_no + '</td><td>' + (r.product_name||'-') + '</td><td class="' + cls + '">' + r.expiry_date + '</td></tr>';
+      });
+      html += '</table>';
+      document.getElementById('result').innerHTML = html;
+    }
+  </script>
+</body>
+</html>
