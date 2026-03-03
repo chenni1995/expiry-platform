@@ -56,6 +56,7 @@ app.post('/api/import', upload.single('file'), (req, res) => {
 
     const insertMany = db.transaction((items) => {
       let count = 0;
+      let emptyCount = 0;
       for (const item of items) {
         const sampleNo = String(item[sampleKey] || '').trim();
         const productName = String(item[productKey] || '').trim();
@@ -64,13 +65,15 @@ app.post('/api/import', upload.single('file'), (req, res) => {
         if (sampleNo) {
           insert.run(sampleNo, productName, expiryDate, generateDate);
           count++;
+        } else {
+          emptyCount++;
         }
       }
-      return count;
+      return { count, emptyCount };
     });
 
-    const count = insertMany(rows);
-    res.json({ success: true, count: count });
+    const result = insertMany(rows);
+    res.json({ success: true, count: result.count, empty: result.emptyCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
