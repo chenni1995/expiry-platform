@@ -24,7 +24,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }
+});
 
 app.post('/api/import', upload.single('file'), (req, res) => {
   if (req.body?.password !== IMPORT_PASSWORD) {
