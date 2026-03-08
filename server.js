@@ -47,10 +47,19 @@ app.post('/api/import', upload.single('file'), (req, res) => {
     }
 
     const keys = Object.keys(rows[0]);
-    const sampleKey = keys.find(k => k.includes('样本编号') || k.toLowerCase().includes('sample')) || keys[0];
-    const productKey = keys.find(k => k.includes('产品')) || keys[1];
-    const expiryKey = keys.find(k => k.includes('效期') || k.toLowerCase().includes('expiry')) || keys[2];
-    const generateKey = keys.find(k => k.includes('生产日期') || k.includes('生成日期')) || keys[3];
+    let sampleKey, productKey, expiryKey, generateKey;
+    
+    if (keys.length === 2) {
+      sampleKey = keys[0];
+      expiryKey = keys[1];
+      productKey = null;
+      generateKey = null;
+    } else {
+      sampleKey = keys.find(k => k.includes('样本编号') || k.toLowerCase().includes('sample')) || keys[0];
+      productKey = keys.find(k => k.includes('产品')) || keys[1];
+      expiryKey = keys.find(k => k.includes('效期') || k.toLowerCase().includes('expiry')) || keys[2];
+      generateKey = keys.find(k => k.includes('生产日期') || k.includes('生成日期')) || keys[3];
+    }
 
     const insert = db.prepare(`
       INSERT OR REPLACE INTO products (sample_no, product_name, expiry_date, generate_date, updated_at)
@@ -58,8 +67,9 @@ app.post('/api/import', upload.single('file'), (req, res) => {
     `);
 
     const insertMany = db.transaction((items) => {
-      let count = 0;
-      let emptyCount = 0;
+      let successCount = 0;
+      let failCount = 0;
+      const failData = [];
       for (const item of items) {
         const sampleNo = String(item[sampleKey] || '').trim();
         const productName = String(item[productKey] || '').trim();
@@ -67,16 +77,22 @@ app.post('/api/import', upload.single('file'), (req, res) => {
         const generateDate = String(item[generateKey] || '').trim();
         if (sampleNo) {
           insert.run(sampleNo, productName, expiryDate, generateDate);
-          count++;
+          successCount++;
         } else {
-          emptyCount++;
+          failCount++;
+          failData.push({ 原始数据: JSON.stringify(item) });
         }
       }
-      return { count, emptyCount };
+      return { successCount, failCount, failData };
     });
 
     const result = insertMany(rows);
-    res.json({ success: true, count: result.count, empty: result.emptyCount });
+    res.json({ 
+      success: true, 
+      successCount: result.successCount, 
+      failCount: result.failCount,
+      failData: result.failData
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -154,6 +170,26 @@ app.post('/api/export', (req, res) => {
     
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent('效期查询结果.xlsx'));
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/export-fail', (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(400).json({ error: '无数据可导出' });
+    }
+
+    const worksheet = xlsx.utils.json_to_sheet(data);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, '导入失败数据');
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent('导入失败数据.xlsx'));
     res.send(buffer);
   } catch (err) {
     res.status(500).json({ error: err.message });

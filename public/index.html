@@ -248,7 +248,14 @@
         const data = await res.json();
         
         if (data.success) {
-          result.innerHTML = '<div class="result success">✅ 导入成功！共导入 ' + data.count + ' 条记录</div>';
+          let html = '<div class="result success">✅ 导入完成！</div>';
+          html += '<div style="margin-top:10px;">✅ 成功: ' + data.successCount + ' 条</div>';
+          if (data.failCount > 0) {
+            html += '<div style="color:#ff4d4f;">❌ 失败: ' + data.failCount + ' 条</div>';
+            html += '<button type="button" onclick="downloadFailData()" style="margin-top:10px;padding:6px 12px;background:#ff4d4f;color:#fff;border:none;border-radius:4px;cursor:pointer;">下载失败数据</button>';
+            window.lastFailData = data.failData;
+          }
+          result.innerHTML = html;
           loadStats();
         } else {
           result.innerHTML = '<div class="result error">❌ ' + data.error + '</div>';
@@ -260,6 +267,22 @@
       btn.disabled = false;
       btn.textContent = '导入数据';
     });
+
+    function downloadFailData() {
+      if (!window.lastFailData || window.lastFailData.length === 0) return;
+      fetch('/api/export-fail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: window.lastFailData })
+      }).then(res => res.blob()).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '导入失败数据.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
 
     document.getElementById('deleteForm').addEventListener('submit', async (e) => {
       e.preventDefault();
