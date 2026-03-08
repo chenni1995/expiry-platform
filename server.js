@@ -216,9 +216,52 @@ app.post('/api/delete', (req, res) => {
   }
 });
 
+app.post('/api/delete-all', (req, res) => {
+  try {
+    if (req.body?.password !== IMPORT_PASSWORD) {
+      return res.status(401).json({ error: '密码错误' });
+    }
+    const result = db.prepare('DELETE FROM products').run();
+    res.json({ success: true, deleted: result.changes });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/stats', (req, res) => {
   const count = db.prepare('SELECT COUNT(*) as count FROM products').get();
   res.json(count);
+});
+
+app.get('/api/export-all', (req, res) => {
+  try {
+    if (req.query?.password !== IMPORT_PASSWORD) {
+      return res.status(401).json({ error: '密码错误' });
+    }
+    
+    const rows = db.prepare('SELECT sample_no, product_name, expiry_date, generate_date FROM products').all();
+    if (rows.length === 0) {
+      return res.status(400).json({ error: '无数据可导出' });
+    }
+
+    const data = rows.map(r => ({
+      '样本编号': r.sample_no,
+      '产品': r.product_name,
+      '效期': r.expiry_date,
+      '生产日期': r.generate_date
+    }));
+
+    const worksheet = xlsx.utils.json_to_sheet(data);
+    const workbook = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(workbook, worksheet, '全部数据');
+    const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', "attachment; filename*=UTF-8''" + encodeURIComponent('全部数据.xlsx'));
+    res.send(buffer);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const PORT = 3000;

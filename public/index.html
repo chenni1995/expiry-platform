@@ -93,6 +93,7 @@
           <input type="file" name="file" accept=".xlsx">
         </div>
         <button type="submit" id="importBtn">导入数据</button>
+        <button type="button" onclick="exportAllData()" style="padding:12px 20px;background:#52c41a;color:#fff;border:none;border-radius:8px;cursor:pointer;">导出全部数据</button>
       </form>
       <div id="importResult"></div>
     </div>
@@ -108,7 +109,10 @@
           <label>选择 Excel 文件 (.xlsx)，根据样本编号删除数据</label>
           <input type="file" name="file" accept=".xlsx">
         </div>
-        <button type="submit" id="deleteBtn" class="btn-danger">导入删除</button>
+        <div class="btn-group">
+          <button type="submit" id="deleteBtn" class="btn-danger">导入删除</button>
+          <button type="button" onclick="deleteAll()" style="padding:12px 20px;background:#ff4d4f;color:#fff;border:none;border-radius:8px;cursor:pointer;">删除全部数据</button>
+        </div>
       </form>
       <div id="deleteResult"></div>
     </div>
@@ -130,6 +134,35 @@
 
     function parseSampleNos(text) {
       return text.split(/[\n,，\s]+/).map(s => s.trim()).filter(s => s.length > 0);
+    }
+
+    function exportAllData() {
+      const passwordInput = document.querySelector('#importForm input[name="password"]');
+      const password = passwordInput.value;
+      if (!password) {
+        alert('请先输入管理密码');
+        return;
+      }
+      
+      const result = document.getElementById('importResult');
+      result.innerHTML = '<div class="loading">正在导出，请稍候...</div>';
+      
+      fetch('/api/export-all?password=' + encodeURIComponent(password)).then(res => {
+        if (!res.ok) {
+          return res.json().then(err => { throw new Error(err.error || '导出失败'); });
+        }
+        return res.blob();
+      }).then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '全部数据.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
+        result.innerHTML = '<div class="result success">✅ 导出成功</div>';
+      }).catch(err => {
+        result.innerHTML = '<div class="result error">❌ ' + err.message + '</div>';
+      });
     }
 
     function exportData() {
@@ -328,6 +361,26 @@
       btn.disabled = false;
       btn.textContent = '导入删除';
     });
+
+    function deleteAll() {
+      const passwordInput = document.querySelector('#deleteForm input[name="password"]');
+      const password = passwordInput.value;
+      if (!confirm('确定要删除全部数据吗？此操作不可恢复！')) return;
+      
+      fetch('/api/delete-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      }).then(res => res.json()).then(data => {
+        const result = document.getElementById('deleteResult');
+        if (data.success) {
+          result.innerHTML = '<div class="result success">✅ 已删除 ' + data.deleted + ' 条记录</div>';
+          loadStats();
+        } else {
+          result.innerHTML = '<div class="result error">❌ ' + data.error + '</div>';
+        }
+      });
+    }
   </script>
 </body>
 </html>
