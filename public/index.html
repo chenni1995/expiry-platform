@@ -170,24 +170,8 @@
         alert('没有数据可导出');
         return;
       }
-      const exportData = lastQueryData.map(item => ({
-        '样本编号': item.sample_no,
-        '产品': item.product_name || '',
-        '效期': item.expiry_date,
-        '生产日期': item.generate_date || ''
-      }));
-      fetch('/api/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: exportData })
-      }).then(res => res.blob()).then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '效期查询结果.xlsx';
-        a.click();
-        URL.revokeObjectURL(url);
-      });
+      const sampleNos = lastQueryData.map(item => item.sample_no).join(',');
+      window.location.href = '/api/export-query?sampleNos=' + encodeURIComponent(sampleNos);
     }
 
     document.getElementById('queryForm').addEventListener('submit', async (e) => {
